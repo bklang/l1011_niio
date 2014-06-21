@@ -26,7 +26,7 @@ int nav2_bitfield[15] = {27,28,29,30,31,32,33,34,35,36,39,40,41,42,43};
 
 int bit_read(uInt32 *r_data, int pin);
 int swcode2int(int code);
-float read_nav(uInt32 *r_data, int *bitfield);
+int read_nav(uInt32 *r_data, int *bitfield);
 
 int main (int argc, char *argv[])
 {
@@ -145,29 +145,29 @@ int swcode2int(int code) {
   return real;
 }
 
-float read_nav(uInt32 *r_data, int *bitfield) {
+int read_nav(uInt32 *r_data, int *bitfield) {
   int i, swcode = 0;
-  float nav_freq = 0.0;
+  int nav_freq = 0;
 
   // Tenths, using pins A, C, E
   swcode += bit_read(r_data, bitfield[0]) << 0;
   swcode += bit_read(r_data, bitfield[1]) << 1;
   swcode += bit_read(r_data, bitfield[2]) << 4;
-  nav_freq = swcode2int(swcode) * 10;
+  nav_freq = swcode2int(swcode) * 1000;
 
   swcode = 0;
   for (i = 0; i < 5; i++) {
     // Ones starts at bitfield[3]
     swcode += bit_read(r_data, bitfield[i+3]) << i;
   }
-  nav_freq += swcode2int(swcode) * 1;
+  nav_freq += swcode2int(swcode) * 100;
 
   swcode = 0;
   for (i = 0; i < 5; i++) {
     // Tenths starts at bitfield[8]
     swcode += bit_read(r_data, bitfield[i+8]) << i;
   }
-  nav_freq += (float)swcode2int(swcode) / 10;
+  nav_freq += swcode2int(swcode) * 10;
 
   swcode = 0;
   // Hundredths starts at bitfield[13], using pins B, C
@@ -175,13 +175,13 @@ float read_nav(uInt32 *r_data, int *bitfield) {
   swcode += bit_read(r_data, bitfield[14]) << 2;
   switch(swcode) {
   case 2:
-    nav_freq += 0.00;
+    nav_freq += 0;
     break;
   case 4:
-    nav_freq += 0.05;
+    nav_freq += 5;
     break;
   default:
     break;
   }
-  return nav_freq + 100;
+  return nav_freq + 10000;
 }
