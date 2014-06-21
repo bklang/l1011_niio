@@ -17,7 +17,7 @@
 #define DAQ_DEV "Dev1"
 
 #define XPLANE_HOST "192.168.1.10"
-#define XPLANE_PORT "49000"
+#define XPLANE_PORT 49000
 
 #define NAV1_TENS DAQ_DEV "/line6:8"
 #define NAV1_ONES DAQ_DEV "/line9:13"
@@ -231,34 +231,27 @@ int is_valid(int freq) {
 }
 
 int get_connection() {
-  struct addrinfo hints;
-  memset(&hints,0,sizeof(hints));
-  hints.ai_family=AF_UNSPEC;
-  hints.ai_socktype=SOCK_DGRAM;
-  hints.ai_protocol=0;
-  hints.ai_flags=AI_ADDRCONFIG;
-  int err=getaddrinfo(XPLANE_HOST, XPLANE_PORT, &hints, &xplane_res);
-  if (err!=0) {
-    printf("failed to resolve remote socket address (err=%d)\n",err);
-    exit(-1);
-  }
 
-  int fd=socket(xplane_res->ai_family,xplane_res->ai_socktype,xplane_res->ai_protocol);
-  if (fd==-1) {
-    printf("%s\n",strerror(errno));
-    exit(-1);
-  }
+  return socket(AF_INET, SOCK_DGRAM, 0);
 
-  return fd;
+
 }
 
 int send_update(int fd, const char* dataref, int val) {
+  printf("Sending packet...\n");
+
+  struct sockaddr_in servaddr;
+  bzero(&servaddr, sizeof(servaddr));
+  servaddr.sin_family = AF_INET;
+  servaddr.sin_addr.s_addr = inet_addr(XPLANE_HOST);
+  servaddr.sin_port = htons(XPLANE_PORT);
+
   char content[500];
   memset(&content, 0, sizeof(content));
 
   snprintf(content, sizeof(content), "DREF\0\0\0\0\0%s", dataref);
   content[5] = (float)val;
-  if (sendto(fd,content,sizeof(content),0, xplane_res->ai_addr,xplane_res->ai_addrlen)==-1) {
+  if (sendto(fd,content,sizeof(content), 0, (struct sockaddr *)&servaddr, sizeof(struct sockaddr))==-1) {
     printf("%s\n",strerror(errno));
     exit(-1);
   }
