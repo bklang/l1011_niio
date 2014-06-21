@@ -4,6 +4,7 @@
 *********************************************************************/
 #include <stdio.h>
 #include <string.h>
+#include <time.h>
 #include "NIDAQmx.h"
 
 #define DAQmxErrChk(functionCall) { if( DAQmxFailed(error=(functionCall)) ) { goto Error; } }
@@ -20,6 +21,9 @@
 #define NAV2_TENTHS DAQ_DEV "/line35:36," DAQ_DEV "/line39:41"
 #define NAV2_HUNTHS DAQ_DEV "/line42:43"
 
+#define NAV1_DATAREF "sim/cockpit/radios/nav1_freq_hz"
+#define NAV2_DATAREF "sim/cockpit/radios/nav2_freq_hz"
+
 // For use outside of channels
 int nav1_bitfield[15] = { 6, 7, 8, 9,10,11,12,13,14,15,16,17,18,19,20};
 int nav2_bitfield[15] = {27,28,29,30,31,32,33,34,35,36,39,40,41,42,43};
@@ -27,6 +31,7 @@ int nav2_bitfield[15] = {27,28,29,30,31,32,33,34,35,36,39,40,41,42,43};
 int bit_read(uInt32 *r_data, int pin);
 int swcode2int(int code);
 int read_nav(uInt32 *r_data, int *bitfield);
+int is_valid(int freq);
 
 int main (int argc, char *argv[])
 {
@@ -36,6 +41,7 @@ int main (int argc, char *argv[])
   int32        i,j,tmp;
   const uInt32 num_chans = 12;
   char         errBuff[2048];
+  int prev_nav1, prev_nav2, cur_nav1, cur_nav2 = 0;
 
   // Read parameters
   uInt32        r_data [num_chans];
@@ -83,14 +89,35 @@ int main (int argc, char *argv[])
   printf("done.\n");
 
 while( TRUE ) {
-  printf("Reading from channels\n");
   // Read from channel
   DAQmxErrChk (DAQmxReadDigitalU32(taskHandle,1,1.0,DAQmx_Val_GroupByChannel,r_data,num_chans,&read,NULL));
 
-  printf("NAV1: %f\n", read_nav(r_data, nav1_bitfield));
-  printf("NAV2: %f\n", read_nav(r_data, nav2_bitfield));
-  
-  sleep( 1 );
+  cur_nav1 = read_nav(r_data, nav1_bitfield);
+  cur_nav2 = read_nav(r_data, nav2_bitfield);
+
+  if (cur_nav1 != prev_nav1) {
+    if (is_valid(cur_nav1)) {
+      printf("NAV1: %d.%d\n", cur_nav1 / 100, cur_nav1 % 100);
+      prev_nav1 = cur_nav1;
+      //send_update(NAV1_DATAREF, cur_nav1);
+    } else {
+      printf("Bogus value read for NAV1 (%f); ignoring\n", cur_nav1);
+    }
+  }
+  if (cur_nav2 != prev_nav2) {
+    if (is_valid(cur_nav2)) {
+      printf("NAV2: %d.%d\n", cur_nav2 / 100, cur_nav2 % 100);
+      prev_nav2 = cur_nav2;
+      //send_update(NAV2_DATAREF, cur_nav2);
+    } else {
+      printf("Bogus value read for NAV2 (%f); ignoring\n", cur_nav1);
+    }
+  }
+
+  struct timespec delay, rem;
+  delay.tv_sec = 0;
+  delay.tv_nsec = 1000000;
+  nanosleep(&delay, &rem);
 }
 
 Error:
@@ -185,3 +212,9 @@ int read_nav(uInt32 *r_data, int *bitfield) {
   }
   return nav_freq + 10000;
 }
+
+int is_valid(int freq) {
+  108.00 < freq < 118.95;
+}
+
+
