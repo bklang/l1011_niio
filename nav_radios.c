@@ -3,12 +3,15 @@
 *    Reads the current frequency from the two VHF NAV radios
 *********************************************************************/
 #include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
 #include <netdb.h>
 #include <errno.h>
 #include <sys/socket.h>
+#include <arpa/inet.h>
 #include <netinet/in.h>
 #include "NIDAQmx.h"
 
@@ -40,10 +43,18 @@ int bit_read(uInt32 *r_data, int pin);
 int swcode2int(int code);
 int read_nav(uInt32 *r_data, int *bitfield);
 int is_valid(int freq);
-int get_connection();
-int send_update(int fd, const char* dataref, int val);
+int send_update(int fd, char* name, int val);
 
 struct addrinfo* xplane_res=0;
+
+struct __attribute__((__packed__)) dataref {
+  char type[4];
+  char unused;
+  float value;
+  char name[500];
+} dataref;
+
+struct sockaddr_in servaddr;
 
 int main (int argc, char *argv[])
 {
@@ -54,7 +65,15 @@ int main (int argc, char *argv[])
   const uInt32 num_chans = 12;
   char         errBuff[2048];
   int prev_nav1, prev_nav2, cur_nav1, cur_nav2 = 0;
-  int xplane_fd = get_connection();
+
+  int xplane_fd = socket(AF_INET, SOCK_DGRAM, 0);
+  bzero(&dataref, sizeof(dataref));
+  strcpy(dataref.type, "DREF");
+
+  bzero(&servaddr, sizeof(servaddr));
+  servaddr.sin_family = AF_INET;
+  servaddr.sin_addr.s_addr = inet_addr(XPLANE_HOST);
+  servaddr.sin_port = htons(XPLANE_PORT);
 
   // Read parameters
   uInt32        r_data [num_chans];
@@ -230,32 +249,14 @@ int is_valid(int freq) {
   108.00 < freq < 118.95;
 }
 
-int get_connection() {
-
-  return socket(AF_INET, SOCK_DGRAM, 0);
-
-
-}
-
-int send_update(int fd, const char* dataref, int val) {
+int send_update(int fd, char* name, int val)
+{
   printf("Sending packet...\n");
-
-  struct sockaddr_in servaddr;
-  bzero(&servaddr, sizeof(servaddr));
-  servaddr.sin_family = AF_INET;
-  servaddr.sin_addr.s_addr = inet_addr(XPLANE_HOST);
-  servaddr.sin_port = htons(XPLANE_PORT);
-
-  char content[500];
-  memset(&content, 0, sizeof(content));
-
-  snprintf(content, sizeof(content), "DREF\0\0\0\0\0%s", dataref);
-  content[5] = (float)val;
-  if (sendto(fd,content,sizeof(content), 0, (struct sockaddr *)&servaddr, sizeof(struct sockaddr))==-1) {
+  dataref.value = (float)val;
+  strcpy(dataref.name, name);
+  if (sendto(fd,&dataref,sizeof(dataref), 0, (struct sockaddr *)&servaddr, sizeof(struct sockaddr))==-1) {
     printf("%s\n",strerror(errno));
     exit(-1);
   }
   return 1;
 }
-
-
