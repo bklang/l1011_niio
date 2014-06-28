@@ -142,7 +142,7 @@ while( TRUE ) {
       prev_nav2 = cur_nav2;
       send_update(xplane_fd, NAV2_DATAREF, cur_nav2);
     } else {
-      printf("Bogus value read for NAV2 (%f); ignoring\n", cur_nav1);
+      printf("Bogus value read for NAV2 (%f); ignoring\n", cur_nav2);
     }
   }
 
